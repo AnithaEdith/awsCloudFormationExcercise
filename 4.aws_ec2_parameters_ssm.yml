@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Sample Cloud Formation Template
+Resources:
+  MyEc2Instance:
+    Description: My EC2 instance
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !Ref MyInstanceTypeUsingSSM
+      ImageId: ami-062f7200baf2fa504
+      KeyName: !Ref MyKeyName
+      SecurityGroups: 
+        - default
+        - !Ref MySSHSecurityGroup
+      AvailabilityZone: !Ref MyAvailabilityZone
+  MySSHSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: My own Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0      
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0      
+  MyElasticIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      InstanceId: !Ref MyEc2Instance
+Parameters:
+  MyKeyName:
+    Description: This is my keypair for my EC2 Instance
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    AllowedValues: ["LearningKey", "LearningKey1","anithatest","USWest1KeyPair"]
+  MyAvailabilityZone:
+    Description: This is my Availability Zone
+    Type: String
+    Default: us-east-1a
+    AllowedValues: 
+      - us-east-1a
+      - us-east-1b
+      - us-west-1a
+      - us-west-1b
+      - us-west-1a
+      - us-east-2
+  MyInstanceType:
+    Description: This is my Instance Types for EC2 Instance
+    Type: String
+    AllowedValues: 
+      - t2.micro
+      - t2.small
+  MyInstanceTypeUsingSSM:
+    Description: This is my SSM Instance Types for EC2 Instance
+    Type: AWS::SSM::Parameter::Value<String>

@@ -1,0 +1,10 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Sample Cloud Formation Template
+Resources:
+  MyEc2Instance:
+    Description: My EC2 instance
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-062f7200baf2fa504
+      KeyName: LearningKey
