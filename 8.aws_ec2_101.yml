@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is an example to create a apache web server on EC2
+Parameters:
+  MyVPCName:
+    Description: This is my VPC
+    Type: String
+  VpcCidr:
+    Description: My VPC CIDR
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR in the form of x.x.x.x/x
+  AvailabiltyZone:
+    Description: My Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  KeyName:
+    Description: My KeyPair Name
+    Type: AWS::EC2::KeyPair::KeyName
+  PublicSubNet:
+    Description: My Public Subnet
+    Type: String 
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR in the form of x.x.x.x/x
+  MyEnvironment:
+    Type: String
+    Default: dev
+    AllowedValues: 
+      - dev
+      - prod
+Mappings:
+  MyRegionAMIName:
+    us-east-1:
+      AMID: ami-062f7200baf2fa504
+    us-east-2:
+      AMID: ami-0d542ef84ec55d71c
+    us-west-1:
+      AMID: ami-04bc3da8f14823e88
+
+  MyInstanceTypeMap:
+    dev:
+      instanceType: t2.micro
+    prod:
+      instanceType: t2.small
+Resources:
+  MyVPC:
+    Description: My New VPC
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref MyVPCName
+  MyPubSubNet:
+    Description: My Public Subnet
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PublicSubNet
+      AvailabilityZone: !Ref AvailabiltyZone
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: !Join
+          - '-'
+          - - !Ref MyVPC
+            - "Public Subnet"
+  MyRouteTable:
+    Description: My Public Route Table
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+  PubSubNetAssociation:
+    Description: My Public Subnet Association
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPubSubNet
+      RouteTableId: !Ref MyRouteTable
+  IGW:
+    Description: My Internet Gateway
+    Type: AWS::EC2::InternetGateway
+  AttachGateway:
+    Description: My Attach Gateway
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref IGW
+  DefaultRoute:
+    Description: Default Route 
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: 'MyVPC'
+    Properties:
+      GroupDescription: allow ssh and http
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0      
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0      
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap
+        - MyRegionAMIName
+        - !Ref 'AWS::Region'
+        - AMID
+      InstanceType: !FindInMap
+        - MyInstanceTypeMap
+        - !Ref MyEnvironment
+        - instanceType
+      SubnetId: !Ref MyPubSubNet
+      Tags: 
+        - Key: Name
+          Value: apache_web_server
+      UserData:
+        'Fn::Base64':
+          !Sub |
+            #!/bin/bash
+            sudo su
+            yum update -y
+            yum install -y httpd
+            chkconfig httpd on
+            service httpd start
+            echo "Success! Welcome to the world of Cloudformation" > /var/www/html/index.html
+      KeyName: !Ref KeyName
+      SecurityGroupIds: 
+      - !Ref SecurityGroup
+Outputs:
+  WebServerURL:
+    Value: !Join ["",["http://", !GetAtt MyEC2Instance.PublicDnsName, ":80"]]
+    Description: URL for Ec2 Instance
