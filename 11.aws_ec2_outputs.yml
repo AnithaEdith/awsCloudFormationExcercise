@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Sample Cloud Formation Template
+Mappings:
+  MyRegionAMIName:
+    us-east-1:
+      AMID: ami-062f7200baf2fa504
+    us-east-2:
+      AMID: ami-0d542ef84ec55d71c
+    us-west-1:
+      AMID: ami-04bc3da8f14823e88
+
+  MyInstanceTypeMap:
+    dev:
+      instanceType: t2.micro
+    prod:
+      instanceType: t2.small
+    qa:
+      instanceType: t2.medium
+
+Conditions:
+  CreateEIPForProd: !Equals [!Ref MyEnvironment, prod]
+  CreateSecurityGroupProd: !Equals [!Ref MyEnvironment, prod]
+  CreateSecurityGroupDev: !Not [{Condition: CreateSecurityGroupProd}]
+  CreateKeyPairOr: !Or [!Equals [!Ref 'AWS::Region', us-east-1], !Equals [!Ref 'AWS::Region', us-east-2]]
+  CreateKeyPairAnd: !And [!Equals [!Ref MyEnvironment, prod],{Condition: CreateKeyPairOr}]
+
+Parameters:
+  MyAvailabilityZone:
+    Description: This is my Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  MyEnvironment:
+    Type: String
+    Default: dev
+    AllowedValues: 
+      - dev
+      - prod
+      - qa
+      
+Resources:
+  MyEc2Instance:
+    Description: My EC2 instance
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !FindInMap
+        - MyInstanceTypeMap
+        - !Ref MyEnvironment
+        - instanceType
+      ImageId: !FindInMap
+        - MyRegionAMIName
+        - !Ref 'AWS::Region'
+        - AMID
+      KeyName: !If [CreateKeyPairAnd, anithatest, USWest1KeyPair]
+      SecurityGroups: !If [CreateSecurityGroupDev,[!Ref MyDevSecurityGroup], [!Ref 'AWS::NoValue']]
+      AvailabilityZone: !Ref MyAvailabilityZone
+  MyProdSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: My prod Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0      
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0      
+  MyElasticIP:
+    Type: 'AWS::EC2::EIP'
+    Condition: CreateEIPForProd
+    Properties:
+      InstanceId: !Ref MyEc2Instance
+  MyDevSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Condition: CreateSecurityGroupDev
+    Properties:
+      GroupDescription: My dev Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0      
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0 
+
+Outputs:     
+  MyEc2InstanceId:
+    Description: My EC2 Instance Id
+    Value: !Ref MyEc2Instance  
+  MyDNSName:
+    Description: My EC2 DNS Name
+    Value: !GetAtt  MyEc2Instance.PublicDnsName 
+  MyInstanceAvailabilityZone:
+    Description: My EC2 Instance availability Zone
+    Value: !GetAtt  MyEc2Instance.AvailabilityZone
+    Export:
+      Name: !Sub "${AWS::StackName}-InstanceAz"
+  MyDevGlobalSecurityGroup:
+    Description: My Dev Global Security group
+    Value: !Ref MyDevSecurityGroup
+    Condition: CreateSecurityGroupDev
+    Export:
+      Name: !Join [":",[!Ref 'AWS::StackName', MyDevSSHGroup]] 
