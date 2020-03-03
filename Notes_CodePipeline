@@ -1,0 +1,46 @@
+sudo yum update
+sudo yum install ruby
+sudo yum install wget
+cd /home/ec2-user
+
+wget https://aws-codedeploy-us-east-2.s3.us-east-2.amazonaws.com/latest/install
+sudo chmod +x ./install
+sudo ./install auto
+
+
+cd /var/log/aws/codedeploy-agent/
+sudo service codedeploy-agent stop
+sudo service codedeploy-agent start
+sudo service codedeploy-agent status
+
+
+s3://codedeploysamplehtml/file.tar
+
+
+
+1) CodeCommit
+    -> Create repository
+    -> Create SNS Topic, create subscription with Protocol as Email and endpoint as <<email id>>
+    -> Created a "Action": "sns:*" for all resources policy and attached to the Group of the user
+    -> In the Notification section of CodeCommit, configure the SNS for all actions
+    -> Create Trigger for All Repository events and configure the same SNS
+
+2) CodeBuild
+    -> select a repository configuration either code commit or git hub
+    -> Buildspec.yml should be in root directory of code base or can be inline instruction while creating the CodeBuild 
+    -> Configure the artifacts and S3 folder 
+    -> Configure Environment, choose an image, environment type, (ami image) for building Linux aws/codebuild/standard:1.0
+    -> BuildServiceRole with Trust Relationship to codebuild.amazonaws.com, Path as /service-role/, 
+    -> Create Trigger for All Repository events and configure the same SNS
+
+3) codedeploy   
+    -> Create application
+    -> Install codedeploy agent in the EC2 instance after the EC2 instance is created
+    -> Create a deployment Group with tags representing an available EC2 instance
+    -> Create a service role that trusts codedeploy.amazonaws.com and attach policy to allow awscodedeployrole 
+    -> Create appspec.yml in the root directory to provide steps/hooks for deployment
+
+4) CodePipeline
+    -> ASsociate a Github or code commit in the source section
+    -> Associate a codebuild in the Build section
+    -> Associate code deploy in the deploy section (assuming the artefact from Build section is deployable)
